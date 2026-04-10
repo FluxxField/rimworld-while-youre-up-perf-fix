@@ -410,7 +410,16 @@ internal class Mod : Verse.Mod
 		[HarmonyPostfix]
 		private static void ClearTempDetour(Pawn pawn)
 		{
-			detours.GetValueSafe(pawn)?.Deactivate();
+			// Only deactivate temporary detours (HtcOpportunity, HtcBeforeCarry).
+			// Don't clear Puah/PuahOpportunity/PuahBeforeCarry detours — those
+			// are active unload jobs whose defHauls cache must persist.
+			// The original code unconditionally cleared here, which wiped the
+			// cache on every work scan (dozens of times per tick per pawn).
+			BaseDetour? detour = detours.GetValueSafe(pawn);
+			if (detour != null && (detour.type == DetourType.HtcOpportunity || detour.type == DetourType.HtcBeforeCarry))
+			{
+				detour.Deactivate();
+			}
 		}
 	}
 
