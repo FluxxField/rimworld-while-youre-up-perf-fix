@@ -15,6 +15,51 @@ using Verse.AI;
 
 namespace WhileYoureUp;
 
+/// <summary>
+/// Global storage cell cache shared across all pawns. Instead of each pawn
+/// independently searching all storage zones for each ThingDef, the first
+/// pawn to look up a def caches the result and all subsequent pawns reuse it.
+/// Invalidated when storage zones change.
+/// </summary>
+internal static class GlobalStorageCache
+{
+	private static readonly Dictionary<ThingDef, IntVec3> _cache = new Dictionary<ThingDef, IntVec3>(64);
+	private static int _lastInvalidationTick = -1;
+
+	/// <summary>
+	/// Try to get a cached storage cell for a ThingDef. Returns true if found.
+	/// </summary>
+	public static bool TryGet(ThingDef def, out IntVec3 cell)
+	{
+		return _cache.TryGetValue(def, out cell);
+	}
+
+	/// <summary>
+	/// Cache a storage cell for a ThingDef.
+	/// </summary>
+	public static void Set(ThingDef def, IntVec3 cell)
+	{
+		_cache[def] = cell;
+	}
+
+	/// <summary>
+	/// Invalidate the entire cache. Called when storage zones change.
+	/// Debounced to once per tick to avoid redundant clears.
+	/// </summary>
+	public static void Invalidate()
+	{
+		int tick = Find.TickManager.TicksGame;
+		if (tick == _lastInvalidationTick) return;
+		_lastInvalidationTick = tick;
+		_cache.Clear();
+	}
+
+	/// <summary>
+	/// Number of cached entries (for debugging).
+	/// </summary>
+	public static int Count => _cache.Count;
+}
+
 internal class Mod : Verse.Mod
 {
 	public enum DetourType
@@ -272,7 +317,9 @@ internal class Mod : Verse.Mod
 		{
 			if (reducedPriorityStore != null)
 			{
-				var owner = Traverse.Create(reducedPriorityStore).Property<IHaulDestination>("HaulDestinationOwner").Value;
+				var owner = _haulDestOwnerProp != null
+					? (IHaulDestination)_haulDestOwnerProp.GetValue(reducedPriorityStore)
+					: Traverse.Create(reducedPriorityStore).Property<IHaulDestination>("HaulDestinationOwner").Value;
 				var obj = owner?.Map;
 				reducedPriorityStore = null;
 				thingsInReducedPriorityStore.Clear();
@@ -476,7 +523,9 @@ internal class Mod : Verse.Mod
 				return null;
 			}
 
-			var thingList = Traverse.Create<WorkGiver_ConstructDeliverResources>().Field<List<Thing>>("resourcesAvailable").Value;
+			var thingList = _resourcesAvailableField != null
+				? (List<Thing>)_resourcesAvailableField.GetValue(null)
+				: Traverse.Create<WorkGiver_ConstructDeliverResources>().Field<List<Thing>>("resourcesAvailable").Value;
 			var thing = thingList.DefaultIfEmpty().MaxBy((Thing x) => x.stackCount);
 			// Thing thing = WorkGiver_ConstructDeliverResources.resourcesAvailable.DefaultIfEmpty().MaxBy((Thing x) => x.stackCount);
 			if ((!havePuah || !settings.UsePickUpAndHaulPlus) && thing.stackCount <= need.count)
@@ -532,7 +581,9 @@ internal class Mod : Verse.Mod
 
 		private static Job TryOpportunisticJob(Pawn_JobTracker jobTracker, Job job)
 		{
-			Pawn value = Traverse.Create(jobTracker).Field("pawn").GetValue<Pawn>();
+			Pawn value = _jobTrackerPawnField != null
+				? (Pawn)_jobTrackerPawnField.GetValue(jobTracker)
+				: Traverse.Create(jobTracker).Field("pawn").GetValue<Pawn>();
 			if (AlreadyHauling(value))
 			{
 				return null;
@@ -799,16 +850,49 @@ internal class Mod : Verse.Mod
 			return CodeOptimist.Patch.Halt(__result = new ThingCount(firstThingToUnload, firstThingToUnload.stackCount));
 			(Thing thing, IntVec3 storeCell) GetDefHaul(Thing thing3)
 			{
+				// Layer 1: per-pawn detour cache (persists across ticks for same job)
 				if (detour.puah.defHauls.TryGetValue(thing3.def, out var value2))
 				{
 					return (thing: thing3, storeCell: value2);
 				}
+				// Layer 2: global shared cache (persists until storage zones change)
+				if (GlobalStorageCache.TryGet(thing3.def, out value2))
+				{
+					if (value2.IsValid && StoreUtility.IsGoodStoreCell(value2, pawn.Map, thing3, pawn, pawn.Faction))
+					{
+						detour.puah.defHauls.Add(thing3.def, value2);
+						return (thing: thing3, storeCell: value2);
+					}
+				}
+				// Layer 3: full storage search (expensive)
 				if (TryFindBestBetterStoreCellFor_MidwayToTarget(thing3, detour.opportunity.jobTarget, detour.beforeCarry.carryTarget, pawn, pawn.Map, StoreUtility.CurrentStoragePriorityOf(thing3), pawn.Faction, out value2, needAccurateResult: false))
 				{
 					detour.puah.defHauls.Add(thing3.def, value2);
+					GlobalStorageCache.Set(thing3.def, value2);
 				}
 				return (thing: thing3, storeCell: value2);
 			}
+		}
+	}
+
+	// Invalidate global storage cache when storage zones change
+	[HarmonyPatch(typeof(HaulDestinationManager), "Notify_SlotGroupChanged")]
+	private static class HaulDestinationManager__Notify_SlotGroupChanged_Patch
+	{
+		[HarmonyPostfix]
+		private static void InvalidateCache()
+		{
+			GlobalStorageCache.Invalidate();
+		}
+	}
+
+	[HarmonyPatch(typeof(StorageSettings), "set_Priority")]
+	private static class StorageSettings__set_Priority_Patch
+	{
+		[HarmonyPostfix]
+		private static void InvalidateCache()
+		{
+			GlobalStorageCache.Invalidate();
 		}
 	}
 
@@ -1621,6 +1705,12 @@ internal class Mod : Verse.Mod
 	// reflection on every call to DetourAwareFirstUnloadableThing.
 	private static readonly MethodInfo PuahMethod_CompHauledToInventory_GetHashSet = (havePuah ? AccessTools.DeclaredMethod(PuahType_CompHauledToInventory, "GetHashSet") : null);
 
+	// Cached reflection for Traverse elimination — resolved once at startup
+	private static readonly PropertyInfo? _haulDestOwnerProp = AccessTools.DeclaredProperty(typeof(StorageSettings), "HaulDestinationOwner");
+	private static readonly FieldInfo? _resourcesAvailableField = AccessTools.DeclaredField(typeof(WorkGiver_ConstructDeliverResources), "resourcesAvailable");
+	private static readonly FieldInfo? _jobTrackerPawnField = AccessTools.DeclaredField(typeof(Pawn_JobTracker), "pawn");
+	private static readonly FieldInfo? _takenToInventoryField = (havePuah ? AccessTools.DeclaredField(PuahType_CompHauledToInventory, "takenToInventory") : null);
+
 	private static readonly Type HugsType_Dialog_VanillaModSettings = GenTypes.GetTypeInAnyAssembly("HugsLib.Settings.Dialog_VanillaModSettings");
 
 	private static readonly bool haveHugs = (object)HugsType_Dialog_VanillaModSettings != null;
@@ -1674,7 +1764,10 @@ internal class Mod : Verse.Mod
 		}
 		if (havePuah)
 		{
-			HashSet<Thing> value2 = Traverse.Create((ThingComp)PuahMethod_CompHauledToInventory_GetComp.Invoke(pawn, null)).Field<HashSet<Thing>>("takenToInventory").Value;
+			var comp2 = (ThingComp)PuahMethod_CompHauledToInventory_GetComp.Invoke(pawn, null);
+			HashSet<Thing> value2 = _takenToInventoryField != null
+				? (HashSet<Thing>)_takenToInventoryField.GetValue(comp2)
+				: Traverse.Create(comp2).Field<HashSet<Thing>>("takenToInventory").Value;
 			if (value2 != null && value2.Any((Thing t) => t != null))
 			{
 				return true;
