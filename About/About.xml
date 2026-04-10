@@ -1,9 +1,9 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <ModMetaData>
-  <name>While You're Up (1.6 patch)</name>
-  <packageId>zsbk.patch16.whileyoureup</packageId>
-  <author>CodeOptimist</author>
-  <url>https://discord.gg/pnZGQAN</url>
+  <name>While You're Up - Performance Fix</name>
+  <packageId>fluxxfield.whileyoureup.perffix</packageId>
+  <author>CodeOptimist (original), cslaneyflett (1.6 port), FluxxField (performance fix)</author>
+  <url>https://github.com/FluxxField/rimworld-while-youre-up-perf-fix</url>
   <supportedVersions>
     <li>1.6</li>
   </supportedVersions>
@@ -19,42 +19,27 @@
     <li>hoodie.whileyoureup</li>
     <li>kevlou127.WhileHYouOreHUpHQ1V0S</li>
     <li>CodeOptimist.JobsOfOpportunity</li>
+    <li>zsbk.patch16.whileyoureup</li>
   </incompatibleWith>
   <loadBefore/>
   <loadAfter/>
-  <description><![CDATA[<b>Opportunistic hauling. Haul-to-inventory improvements (only if <color=grey><b>Pick Up And Haul</b></color> is installed).</b>
+  <description><![CDATA[<b>Performance-fixed fork of While You're Up (1.6 patch).</b>
+
+This is a fork of cslaneyflett's 1.6 port of CodeOptimist's While You're Up, with critical performance fixes identified by ModScope: Profiler.
+
+<color=teal><b>Performance Fixes:</b></color>
+- Fixed cache invalidation bug that cleared the storage cell cache on every tick, causing a full map-wide storage search for every item in every pawn's inventory every tick (~9ms/tick → <0.1ms/tick)
+- Replaced per-tick Traverse reflection with cached MethodInfo lookup
+- Eliminated duplicate Linq pass over inventory items (two GetDefHaul passes → one)
+- Replaced Linq Intersect+Contains with direct Contains check
+
+<color=teal><b>Original Features:</b></color>
+Opportunistic hauling. Haul-to-inventory improvements (only if Pick Up And Haul is installed).
+
 A must-have with PUAH. Compatible with existing saves. Any load order.
 
-The following description is for RimWorld <b>1.5</b>.
+<b>Use this mod INSTEAD of the original While You're Up (1.6 patch), not alongside it.</b>
 
-
-Much of this mod is improving <i>Pick Up And Haul</i> (optional; installed separately). If you already use PUAH, you want this mod too.
-
-"But my pawns are walking farther!"
-Yes. A slightly longer journey now to avoid a <i>much</i> longer journey next time.
-
-<color=teal><i>Pick Up And Haul+</i>: Better unloading</color>
-We enhance all inventory hauling by unloading only once at each storage destination, in closest order.
-We cache haulable destinations to improve performance.
-
-<color=teal>Opportunistic hauls</color>
-Vanilla has support for opportunities, but with limitations: haulable near your <b>start</b> position, and storage near your job.
-We prefer these, but drop them as requirements to include hauls along the path.
-
-We skip opportunities when bleeding or forming a caravan.
-
-<i>Pick Up And Haul+</i>
-Modified to grab only surrounding things whose unload path is also opportunistic.
-
-<color=teal>Haul extra supplies & ingredients closer</color>
-If hauling resources to storage would bring them closer to their job, do that first (grabbing extra).
-
-<i>Pick Up And Haul+</i>
-Modified to grab extra things headed to the same storage (when higher priority) unless bleeding.
-Grab extra supplies & ingredients headed to the same storage (when equal priority).
-
-<color=teal>Storage building filters for mod compatibility</color>
-Permit or deny for any storage building through settings, or leave automatically managed with mod updates.
-
+AGPL-3.0 licensed. Original mod by CodeOptimist, 1.6 port by cslaneyflett.
 ]]></description>
 </ModMetaData>

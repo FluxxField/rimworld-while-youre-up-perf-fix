@@ -1,3 +1,8 @@
 *.DotSettings.user
 .idea/
 Source/obj
+Source/bin
+1.6/Assemblies/*.dll
+1.6/Assemblies/*.pdb
+.DS_Store
+Thumbs.db

@@ -727,15 +727,29 @@ internal class Mod : Verse.Mod
 			{
 				return CodeOptimist.Patch.Continue();
 			}
-			HashSet<Thing> value = Traverse.Create((ThingComp)PuahMethod_CompHauledToInventory_GetComp.Invoke(pawn, null)).Method("GetHashSet").GetValue<HashSet<Thing>>();
-			if (!value.Any())
+			// Use cached MethodInfo instead of Traverse to avoid reflection
+			// overhead on every tick.
+			var comp = (ThingComp)PuahMethod_CompHauledToInventory_GetComp.Invoke(pawn, null);
+			HashSet<Thing> value = (HashSet<Thing>)PuahMethod_CompHauledToInventory_GetHashSet.Invoke(comp, null);
+			if (value.Count == 0)
 			{
 				return CodeOptimist.Patch.Halt(__result = default(ThingCount));
 			}
 			BaseDetour detour = SetOrAddDetour(pawn, DetourType.ExistingElsePuah);
-			(Thing, IntVec3) tuple = (from x in value.Select(GetDefHaul)
-									  where x.storeCell.IsValid
-									  select x).DefaultIfEmpty().MinBy(((Thing thing, IntVec3 storeCell) x) => x.storeCell.DistanceToSquared(pawn.Position));
+			// Single pass: compute GetDefHaul for each thing once and
+			// materialize the valid results. The original code called
+			// GetDefHaul twice (two Linq passes over the same set),
+			// doubling the storage cell lookup cost.
+			var allDefHauls = new List<(Thing thing, IntVec3 storeCell)>(value.Count);
+			foreach (var t in value)
+			{
+				var dh = GetDefHaul(t);
+				if (dh.storeCell.IsValid)
+					allDefHauls.Add(dh);
+			}
+			(Thing, IntVec3) tuple = allDefHauls.Count > 0
+				? allDefHauls.MinBy(x => x.storeCell.DistanceToSquared(pawn.Position))
+				: default;
 			SlotGroup closestSlotGroup = (tuple.Item2.IsValid ? tuple.Item2.GetSlotGroup(pawn.Map) : null);
 			Thing thing;
 			if (closestSlotGroup == null)
@@ -744,16 +758,20 @@ internal class Mod : Verse.Mod
 			}
 			else
 			{
-				thing = (from x in value.Select(GetDefHaul)
-						 where x.storeCell.IsValid && x.storeCell.GetSlotGroup(pawn.Map) == closestSlotGroup
-						 select x).DefaultIfEmpty().MinBy(((Thing thing, IntVec3 storeCell) x) => (index: x.thing.def.FirstThingCategory?.index, defName: x.thing.def.defName)).thing;
+				// Reuse the materialized list instead of a second GetDefHaul pass
+				thing = allDefHauls
+					.Where(x => x.storeCell.GetSlotGroup(pawn.Map) == closestSlotGroup)
+					.DefaultIfEmpty()
+					.MinBy(x => (index: x.thing?.def.FirstThingCategory?.index, defName: x.thing?.def.defName)).thing;
 			}
 			Thing firstThingToUnload = thing;
 			if (firstThingToUnload == null)
 			{
 				firstThingToUnload = value.MinBy((Thing t) => (index: t.def.FirstThingCategory?.index, defName: t.def.defName));
 			}
-			if (!value.Intersect(pawn.inventory.innerContainer).Contains(firstThingToUnload))
+			// Manual check instead of Linq Intersect+Contains to avoid
+			// allocating intermediate collections every tick.
+			if (!pawn.inventory.innerContainer.Contains(firstThingToUnload))
 			{
 				value.Remove(firstThingToUnload);
 				Thing thing2 = pawn.inventory.innerContainer.FirstOrDefault((Thing t) => t.def == firstThingToUnload.def);
@@ -1583,6 +1601,10 @@ internal class Mod : Verse.Mod
 
 	private static readonly MethodInfo PuahMethod_CompHauledToInventory_GetComp = (havePuah ? AccessTools.DeclaredMethod(typeof(ThingWithComps), "GetComp").MakeGenericMethod(PuahType_CompHauledToInventory) : null);
 
+	// Cached MethodInfo for CompHauledToInventory.GetHashSet — avoids Traverse
+	// reflection on every call to DetourAwareFirstUnloadableThing.
+	private static readonly MethodInfo PuahMethod_CompHauledToInventory_GetHashSet = (havePuah ? AccessTools.DeclaredMethod(PuahType_CompHauledToInventory, "GetHashSet") : null);
+
 	private static readonly Type HugsType_Dialog_VanillaModSettings = GenTypes.GetTypeInAnyAssembly("HugsLib.Settings.Dialog_VanillaModSettings");
 
 	private static readonly bool haveHugs = (object)HugsType_Dialog_VanillaModSettings != null;
@@ -1659,7 +1681,12 @@ internal class Mod : Verse.Mod
 		if (type == DetourType.ExistingElsePuah)
 		{
 			DetourType type2 = value.type;
-			if ((uint)(type2 - 5) <= 1u)
+			// Early return if already in a Puah-family state — preserves
+			// the defHauls cache across ticks instead of clearing and
+			// rebuilding it every call. Original code only checked types
+			// 5-6 (PuahOpportunity/PuahBeforeCarry) but missed type Puah
+			// itself, causing a full storage cell search every tick.
+			if ((uint)(type2 - 5) <= 1u || type2 == DetourType.Puah)
 			{
 				return Result(value);
 			}

@@ -1,0 +1,12 @@
+GNU AFFERO GENERAL PUBLIC LICENSE
+Version 3, 19 November 2007
+
+This mod is a derivative work of "While You're Up" by CodeOptimist,
+originally licensed under AGPL-3.0. This fork maintains the same license.
+
+Original: https://github.com/CodeOptimist/rimworld-while-youre-up
+1.6 Port: https://github.com/cslaneyflett/zsbk.patch16.whileyoureup
+Performance Fix: https://github.com/FluxxField/rimworld-while-youre-up-perf-fix
+
+For the full text of the AGPL-3.0 license, see:
+https://www.gnu.org/licenses/agpl-3.0.en.html

@@ -6,29 +6,26 @@
     <TargetFramework>net480</TargetFramework>
     <PlatformTarget>x64</PlatformTarget>
 
-    <!-- Modify [RootNamespace], [AssemblyName], [OutputPath], [VersionPrefix] -->
     <RootNamespace>WhileYoureUp</RootNamespace>
     <AssemblyName>WhileYoureUp</AssemblyName>
     <OutputPath>../1.6/Assemblies</OutputPath>
-    <VersionPrefix>0.1.0.0</VersionPrefix>
+    <VersionPrefix>0.2.0.0</VersionPrefix>
 
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-
-    <RimWorldPath Condition="'$(RimWorldPath)' == '' AND '$(OS)' == 'Windows_NT'">../../../RimWorldWin64_Data/Managed</RimWorldPath>
-    <RimWorldPath Condition="'$(RimWorldPath)' == '' AND '$(OS)' != 'Windows_NT'">../../../RimWorldLinux_Data/Managed</RimWorldPath>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Rimworld -->
-    <Reference Include="$(RimWorldPath)/*.dll">
-      <Private>False</Private>
+    <!-- All RimWorld + Unity managed assemblies -->
+    <Reference Include="/mnt/c/Program Files (x86)/Steam/steamapps/common/RimWorld/RimWorldWin64_Data/Managed/*.dll">
+      <Private>false</Private>
     </Reference>
 
     <!-- Harmony -->
-    <Reference Include="../../../../../../steamapps/workshop/content/294100/2009463077/Current/Assemblies/0Harmony.dll">
-      <Private>False</Private>
+    <Reference Include="0Harmony">
+      <HintPath>/mnt/c/Program Files (x86)/Steam/steamapps/workshop/content/294100/2009463077/Current/Assemblies/0Harmony.dll</HintPath>
+      <Private>false</Private>
     </Reference>
   </ItemGroup>
 </Project>
