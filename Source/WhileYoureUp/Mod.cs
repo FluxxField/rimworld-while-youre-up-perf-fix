@@ -387,10 +387,17 @@ internal class Mod : Verse.Mod
 		[HarmonyPostfix]
 		private static void ClearDetour(Pawn ___pawn)
 		{
-			if (___pawn != null)
-			{
-				detours.GetValueSafe(___pawn)?.Deactivate();
-			}
+			if (___pawn == null) return;
+			BaseDetour? detour = detours.GetValueSafe(___pawn);
+			if (detour == null) return;
+			// Don't clear Puah-family detours during routine job queue clears.
+			// ClearQueuedJobs fires frequently during normal job transitions
+			// and would wipe the defHauls cache. Only clear non-Puah detours.
+			// The Puah cache is properly cleared by the MakeNewToils finish
+			// action when the unload job actually ends.
+			if (detour.type == DetourType.Puah || detour.type == DetourType.PuahOpportunity || detour.type == DetourType.PuahBeforeCarry)
+				return;
+			detour.Deactivate();
 		}
 	}
 
