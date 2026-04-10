@@ -35,7 +35,7 @@ This is a fork of cslaneyflett's 1.6 port of CodeOptimist's While You're Up, wit
 - Eliminated duplicate Linq pass over inventory items (two GetDefHaul passes → one)
 - Replaced Linq Intersect+Contains with direct Contains check
 
-Identified using ModScope: Profiler. Original cost: ~20ms/tick. Fixed cost: <0.5ms/tick.
+Original cost: ~20ms/tick. Fixed cost: less than 0.5ms/tick.
 
 <color=teal><b>Original Features:</b></color>
 Opportunistic hauling. Haul-to-inventory improvements (only if Pick Up And Haul is installed).

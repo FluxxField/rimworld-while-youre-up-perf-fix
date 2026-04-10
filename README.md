@@ -67,12 +67,7 @@ Compatible with Pick Up And Haul (PUAH). All original features are preserved —
 
 ## How This Was Found
 
-These bugs were identified using [ModScope: Profiler](https://github.com/FluxxField/rimworld-modscope-profiler), a runtime profiler that automatically attributes tick cost to specific mods. The profiler showed:
-
-1. While You're Up was #1 at 9.43ms/tick on a 576-mod list
-2. Drill-down showed `FirstUnloadableThing` was 95% of the cost
-3. Source code analysis revealed the cache invalidation chain
-4. Four iterations of profiler-guided fixes reduced it to <0.5ms
+These bugs were identified through runtime profiling on a 576-mod load order. The profiler showed While You're Up as the #1 most expensive mod at 9.43ms/tick, with `FirstUnloadableThing` accounting for 95% of the cost. Source code analysis revealed the cache invalidation chain, and four iterations of profiler-guided fixes reduced it to <0.5ms.
 
 ## Requirements
 
@@ -89,4 +84,3 @@ AGPL-3.0 (inherited from original)
 - **CodeOptimist** — original While You're Up mod
 - **cslaneyflett** — 1.6 port
 - **FluxxField** — performance fixes
-- **ModScope: Profiler** — the tool that found the bugs
