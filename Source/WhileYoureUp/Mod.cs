@@ -1712,6 +1712,19 @@ internal class Mod : Verse.Mod
 		value.opportunity.jobTarget = jobTarget ?? LocalTargetInfo.Invalid;
 		value.beforeCarry.puah.storeCell = storeCell ?? IntVec3.Invalid;
 		value.beforeCarry.carryTarget = carryTarget ?? LocalTargetInfo.Invalid;
+		// Preserve the defHauls cache when transitioning between Puah-family
+		// types (Puah, PuahOpportunity, PuahBeforeCarry). The storage cell
+		// lookups in defHauls are still valid regardless of which Puah sub-state
+		// we're in. Only do a full Deactivate (which clears defHauls) when
+		// transitioning FROM a non-Puah state or TO a non-Puah state.
+		bool wasPuahFamily = value.type == DetourType.Puah || value.type == DetourType.PuahOpportunity || value.type == DetourType.PuahBeforeCarry;
+		bool isPuahFamily = type == DetourType.Puah || type == DetourType.PuahOpportunity || type == DetourType.PuahBeforeCarry;
+		if (wasPuahFamily && isPuahFamily)
+		{
+			// Preserve defHauls cache, just update the type and other fields
+			value.type = type;
+			return Result(value);
+		}
 		value.Deactivate();
 		value.type = type;
 		return Result(value);
