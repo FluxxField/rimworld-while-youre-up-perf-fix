@@ -875,9 +875,9 @@ internal class Mod : Verse.Mod
 		}
 	}
 
-	// Invalidate global storage cache when storage zones change
-	[HarmonyPatch(typeof(HaulDestinationManager), "Notify_SlotGroupChanged")]
-	private static class HaulDestinationManager__Notify_SlotGroupChanged_Patch
+	// Invalidate global storage cache when storage configuration changes
+	[HarmonyPatch(typeof(HaulDestinationManager), "Notify_HaulDestinationChangedPriority")]
+	private static class HaulDestinationManager__Notify_HaulDestinationChangedPriority_Patch
 	{
 		[HarmonyPostfix]
 		private static void InvalidateCache()
@@ -886,8 +886,18 @@ internal class Mod : Verse.Mod
 		}
 	}
 
-	[HarmonyPatch(typeof(StorageSettings), "set_Priority")]
-	private static class StorageSettings__set_Priority_Patch
+	[HarmonyPatch(typeof(HaulDestinationManager), "AddHaulDestination")]
+	private static class HaulDestinationManager__AddHaulDestination_Patch
+	{
+		[HarmonyPostfix]
+		private static void InvalidateCache()
+		{
+			GlobalStorageCache.Invalidate();
+		}
+	}
+
+	[HarmonyPatch(typeof(HaulDestinationManager), "RemoveHaulDestination")]
+	private static class HaulDestinationManager__RemoveHaulDestination_Patch
 	{
 		[HarmonyPostfix]
 		private static void InvalidateCache()
